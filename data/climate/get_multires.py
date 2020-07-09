@@ -1,7 +1,7 @@
 import argparse
 import os
 from datetime import datetime
-
+from copy import deepcopy
 import numpy as np
 import torch
 import xarray as xr
@@ -11,8 +11,6 @@ from matplotlib.path import Path
 from torch.nn.functional import interpolate
 
 cdo = Cdo()
-# cdo.debug = True
-
 
 def convertLons(lons):
     # Change longitude from [0,360] to [-180,180]
@@ -78,10 +76,6 @@ def padVector(x, target_range=None):
     excess_before = end - target_range[0]
     n = np.round(excess_before / delta_in)
     nose = np.array([end - delta_in * i for i in np.arange(n, 0, -1)])
-
-    # orig_idx = [
-    #     len(nose), len(nose) + len(x)
-    # ]  # get the start/end indices of the original data in the new vector
 
     return (np.concatenate([nose, x, tail]), [len(nose), len(tail)])
 
@@ -165,35 +159,37 @@ def get_multi_res(model,
           - lonlat_range represents the extent of the data in lat/lon
             coordinates
     '''
-    input_fp = out_fp + f'{var}_lonlat.nc'
+    input_fp = os.path.join(out_fp, f'{var}_lonlat.nc')
     data = xr.open_dataarray(input_fp)  # Open xarray data
-    time_values = data.time
-    data = torch.tensor(data.values).unsqueeze(
+    tensor_data = torch.from_numpy(data.values).unsqueeze(
         1)  # Get numpy values and add 4th dimension
 
     for dim in dims:
         lon = getPointsForRange(minmax=lonlat_range[:2], n=dim[1])
         lat = getPointsForRange(minmax=lonlat_range[2:], n=dim[0])
-        temp = interpolate(data,
+        new_data = interpolate(tensor_data,
                            size=dim,
                            mode='bilinear',
                            align_corners=False).squeeze(1)  # downsample
-        temp = xr.DataArray(temp.numpy(),
-                            coords={
-                                'time': time_values,
-                                'lon': lon,
-                                'lat': lat
-                            },
+        new_data = xr.DataArray(new_data.numpy(),
+                                coords={
+                                    'time': data.time,
+                                    'lon': lon,
+                                    'lat': lat
+                                },
                             dims=['time', 'lat', 'lon'])
-        temp.to_netcdf(out_fp + f'{var}_{dim[0]}x{dim[1]}.nc')
+        new_data.lon.attrs = data.lon.attrs
+        new_data.lat.attrs = data.lat.attrs
+        new_data.to_netcdf(os.path.join(out_fp, f'{var}_{dim[0]}x{dim[1]}.nc'))
 
+        # Get area of each gridcell and write to file
+        gridarea_fn = f'gridarea_{dim[0]}x{dim[1]}.nc'
+        if not(gridarea_fn in os.listdir(out_fp)):
+            infile = os.path.join(out_fp, f'{var}_{dim[0]}x{dim[1]}.nc')
+            outfile = os.path.join(out_fp, gridarea_fn)
+            cdo.gridarea(input=infile, output=outfile)
 
 if __name__ == '__main__':
-
-    #     Defaults
-    #     precip_fp = '../data/prism/'
-    #     ocean_data_fp = '../data/reanalysis/'
-    #     out_fp = './data/'
 
     # Arguments Parse
     parser = argparse.ArgumentParser()
@@ -213,7 +209,7 @@ if __name__ == '__main__':
     # PRISM dataset
     # Get file list to read into xarray
     file_list = os.listdir(precip_fp)  # get list of files
-    file_list = [precip_fp + file
+    file_list = [os.path.join(precip_fp, file)
                  for file in file_list]  # append home directory
     file_list.sort()  # sort files in chronological orderb
 
@@ -237,22 +233,8 @@ if __name__ == '__main__':
     # Convert to DataArray
     ppt = ppt.ppt.sel(time=slice(None, '2018-11-30'))
 
-    # Plot mean ppt
+    # Load into memory
     ppt.load()
-    # fig, ax = utils.plot_setup()
-    # ax.contourf(sss.lon, sss.lat,sss.isel(time=0), cmap='cmo.haline')
-    # cp = ax.contourf(ppt.lon,
-    #                  ppt.lat,
-    #                  ppt.mean(dim='time'),
-    #                  cmap='cmo.rain',
-    #                  levels=np.linspace(0, 200, 15),
-    #                  extend='max')
-    # cb = fig.colorbar(cp,
-    #                   orientation='horizontal',
-    #                   label='Monthly precipitation (mm)',
-    #                   pad=.03)
-    # fig.savefig('../results/ppt_mean.png',dpi=200)
-    # plt.show()
 
     # Interpolate precipitation to 1º resolution, then embed in larger grid
     temp = interpolate(torch.tensor(ppt.values).unsqueeze(1),
@@ -315,10 +297,6 @@ if __name__ == '__main__':
                                 },
                                 dims=['lat', 'lon'])
 
-    # Plot path
-    # fig, ax = utils.plot_setup()
-    # addOutline(ax, midwest_path)
-
     # Midwest
     midwest_precip = get_region_precip(ppt, midwest_path)
     midwest_precip.to_netcdf(os.path.join(out_fp,
@@ -347,8 +325,8 @@ if __name__ == '__main__':
                          360,
                          -20,
                          59,
-                         input=ocean_data_fp + var[0],
-                         output=out_fp + f'{var[1]}_lonlat.nc')
+                         input=os.path.join(ocean_data_fp, var[0]),
+                         output=os.path.join(out_fp, f'{var[1]}_lonlat.nc'))
 
     # Get multiple resolutions of data
     for var in ['sss', 'sst', 'ppt']:

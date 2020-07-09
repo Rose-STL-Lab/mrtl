@@ -292,8 +292,7 @@ def weight_by_area(data_fp, data):
     #     Returns dataarray with same dimensions
 
     dim = [len(data.lat), len(data.lon)]
-    fp = os.path.join(data_fp,
-                      'rescaled/small/gridarea_{0}x{1}.nc'.format(*dim))
+    fp = os.path.join(data_fp, 'gridarea_{0}x{1}.nc'.format(*dim))
     grid_area = xr.open_dataarray(fp)
     grid_prop = grid_area / np.max(grid_area)
     grid_prop = grid_prop.assign_coords({

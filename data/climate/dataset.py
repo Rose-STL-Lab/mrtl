@@ -5,6 +5,7 @@ import torch
 import xarray as xr
 from dateutil.relativedelta import relativedelta
 from utils import diff_detrend_xr, preprocess
+import os
 
 
 class ClimateDataset(torch.utils.data.Dataset):
@@ -114,9 +115,9 @@ def getData(dim,
     '''
     # Returns train, test, and validation datasets
 
-    sss_fn = data_fp + f'sss_{dim[0]}x{dim[1]}.nc'
-    sst_fn = data_fp + f'sst_{dim[0]}x{dim[1]}.nc'
-    precip_fn = data_fp + f'ppt_{dim[0]}x{dim[1]}.nc'
+    sss_fn = os.path.join(data_fp, f'sss_{dim[0]}x{dim[1]}.nc')
+    sst_fn = os.path.join(data_fp, f'sst_{dim[0]}x{dim[1]}.nc')
+    precip_fn = os.path.join(data_fp, f'ppt_{dim[0]}x{dim[1]}.nc')
     X1 = xr.open_dataarray(sss_fn).sel(
         time=slice(f'{start_year}-01-01', '2018-01-31'))
     X2 = xr.open_dataarray(sst_fn).sel(
@@ -129,7 +130,7 @@ def getData(dim,
     X = xr.concat([X1, X2],
                   dim='var')  # concatenate variables into single dataarray
 
-    y_fn = data_fp + ppt_file
+    y_fn = os.path.join(data_fp, ppt_file)
     y = xr.open_dataarray(y_fn).sel(
         time=slice('{}-01-01'.format(start_year), '2018-01-31'))
 

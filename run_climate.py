@@ -11,54 +11,61 @@ import utils
 import xarray as xr
 from cp_als import cp_decompose
 from data.climate.dataset import getData
-# from plotter import plot_loss, plot_w, plotActualPreds
 from train.climate.model import my_regression, my_regression_low
 from train.climate.multi import Multi
+import cmocean
 
 sns.set()
 
 if __name__ == '__main__':
 
-    # Default directories
-    # data_fp = './data/'
-    # save_fp = './results/latent-factors/'
     save_results = True
 
     # Arguments Parse
     parser = argparse.ArgumentParser()
+    parser.add_argument('--method', dest='method')
     parser.add_argument('--data_dir', dest='data_dir')
     parser.add_argument('--save_dir', dest='save_dir')
     parser.add_argument('--experiment_name', dest='experiment_name')
     args = parser.parse_args()
+
+    # Get paths and create directories if necessary
     data_fp = args.data_dir
     save_fp = args.save_dir
-
     save_fp = os.path.join(save_fp, args.experiment_name)
-
     if not os.path.isdir(save_fp):
-        os.mkdir(save_fp)
+        os.makedirs(save_fp)
 
     lead = 6
     # list of dims to use for MRTL (reverse order so that smallest is first)
     dims = [[4, 9], [8, 18], [12, 27], [24, 54], [40, 90], [60, 135],
             [80, 180]]
 
-    # #### Full-rank
+    #### Full-rank
     show_preds = False
     plot_weights = False
-    period = 10
+    period = 1
 
     stop_cond = 'val_loss'
     max_epochs = 2
     do_normalize_X = False
     do_normalize_y = True
 
+    # DIMENSIONS TO TRAIN ON
+    
+    if args.method == 'mrtl':
+        start_dim_idx = 0   # index of resolution to start training on 
+        end_dim_idx = 1     # index of transition resolution
+        new_end_dim_idx = 6 # index of final resolution
+    elif args.method == 'fixed':
+        start_dim_idx = 6
+        end_dim_idx = 6
+        new_end_dim_idx = 6
+    
     # INSTANTIATE MODEL
-    start_dim_idx = 0
-    end_dim_idx = 1
     multi = Multi(batch_size=10, stop_cond=stop_cond)
 
-    # Hyperparams
+    # HYPERPARAMETERS
     start_lr = .001
     step = 1
     gamma = .95
@@ -70,6 +77,8 @@ if __name__ == '__main__':
     multi.model = my_regression(lead=lead,
                                 input_shape=dims[start_dim_idx],
                                 output_shape=1)
+    
+    # SET LEARNING RATES ACROSS RESOLUTOINS
     ratios = [dims[idx + 1][0] / dims[idx][0] for idx in range(len(dims) - 1)]
     lrs = np.zeros(len(dims))
     for i, lr in enumerate(lrs):
@@ -97,16 +106,10 @@ if __name__ == '__main__':
         if multi.spatial_reg:
             multi.K = utils.create_kernel(dim, sigma=.05, device=multi.device)
 
-        if idx > 0:
-            plot_weights = False  # choose whether to plot the weights
-        else:
-            plot_weights = False
-
         print('\n\nLearning for resolution {0}x{1} (FULL RANK)'.format(
             dim[0], dim[1]))
 
         # CREATE DATASET
-        # need to make sure train/val/test are the same for each loop
         train_set, val_set, test_set = getData(dim,
                                                data_fp=data_fp,
                                                lead_time=lead,
@@ -124,16 +127,6 @@ if __name__ == '__main__':
                     period=period,
                     plot_weights=plot_weights)
 
-        # # Plot predictions
-        # if show_preds:
-        #     y_train, preds_train = multi.getPreds(train_set)
-        #     y_val, preds_val = multi.getPreds(val_set)
-
-        #     fig, ax = plotActualPreds(y_train, preds_train, title='Training')
-        #     plt.show()
-        #     fig, ax = plotActualPreds(y_val, preds_val, title='Validation')
-        #     plt.show()
-
         # FINEGRAIN
         if idx != end_dim_idx:
             full_finegrain_epochs.append(len(full_train_loss))
@@ -144,6 +137,7 @@ if __name__ == '__main__':
             new_w = torch.nn.functional.interpolate(
                 multi.model.w.clone().detach().cpu().reshape(lead, 2, *dim),
                 size=dims[idx + 1],
+                align_corners=False,
                 mode='bilinear') / ratio
             new_w = new_w.reshape(lead, 2, -1)
             multi.model.w = torch.nn.Parameter(new_w.to(multi.device),
@@ -151,9 +145,6 @@ if __name__ == '__main__':
 
     # #### Low-rank
     max_epochs = 30
-    period = max_epochs + 1
-
-    new_end_dim_idx = 6
 
     if 'low' not in type(multi.model).__name__:
         w = multi.model.w.detach().clone()
@@ -234,16 +225,6 @@ if __name__ == '__main__':
                     period=period,
                     plot_weights=plot_weights)
 
-        # # Plot predictions
-        # if show_preds:
-        #     y_train, preds_train = multi.getPreds(train_set)
-        #     y_val, preds_val = multi.getPreds(val_set)
-
-        #     fig, ax = plotActualPreds(y_train, preds_train, title='Training')
-        #     plt.show()
-        #     fig, ax = plotActualPreds(y_val, preds_val, title='Validation')
-        #     plt.show()
-
         # FINEGRAIN
         # Just need to fine grain the spatial factor
         if idx != (len(low_rank_dims) - 1):
@@ -275,24 +256,24 @@ if __name__ == '__main__':
     for idx in np.arange(K):
         # TODO fix figures (GEOS errors)
         # contourf plot
-        # fig, ax = utils.plot_setup(plot_range=[-150, -40, 10, 56])
-        # cp = ax.contourf(temp.lon,
-        #                  temp.lat,
-        #                  latent_factors[:, idx].reshape(*dim),
-        #                  np.linspace(-max_abs, max_abs, 15),
-        #                  cmap='cmo.balance')
-        # fig.savefig(os.path.join(save_fp, f'latent-factor{idx}_contourf.png'),
-        #             dpi=200)
-        # # plt.show()
-
-        # # imshow plot
-        # fig, ax = plt.subplots()
-        # cp = ax.imshow(np.flipud(
-        #     latent_factors[:, idx].reshape(*dims[new_end_dim_idx])),
-        #                vmin=-max_abs,
-        #                vmax=max_abs,
-        #                cmap='cmo.balance')
-        # cb = fig.colorbar(cp, orientation='vertical', fraction=.021)
-        # fig.savefig(os.path.join(save_fp, f'latent-factor{idx}_imshow.png'),
-        #             dpi=200)
+        fig, ax = utils.plot_setup(plot_range=[-150, -40, 10, 56])
+        cp = ax.contourf(temp.lon,
+                         temp.lat,
+                         latent_factors[:, idx].reshape(*dim),
+                         np.linspace(-max_abs, max_abs, 15),
+                         cmap='cmo.balance')
+        fig.savefig(os.path.join(save_fp, f'latent-factor{idx}_contourf.png'),
+                    dpi=200)
         # plt.show()
+
+        # imshow plot
+        fig, ax = plt.subplots()
+        cp = ax.imshow(np.flipud(
+            latent_factors[:, idx].reshape(*dims[new_end_dim_idx])),
+                       vmin=-max_abs,
+                       vmax=max_abs,
+                       cmap='cmo.balance')
+        cb = fig.colorbar(cp, orientation='vertical', fraction=.021)
+        fig.savefig(os.path.join(save_fp, f'latent-factor{idx}_imshow.png'),
+                    dpi=200)
+#         plt.show()
