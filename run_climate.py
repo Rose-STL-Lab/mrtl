@@ -151,7 +151,7 @@ if __name__ == '__main__':
         b_full = multi.model.b.detach().clone()
 
     # Factorize the weight tensor
-    K = 6  # rank of the decomposition
+    K = 2  # rank of the decomposition
 
     weights, factors = cp_decompose(w,
                                     K,
