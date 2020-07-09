@@ -76,13 +76,14 @@ python run_bball.py \
 
 Helper scripts are provided in `src/` to do 10 trials of fixed vs multi resolution and stop_condition experiments.
 ## Climate
-Run `run_climate.py` with arguments to run a single experiment. `run_climate_stop_cond.py` compares the various stopping conditions.
+Run `run_climate.py` with arguments to run a single experiment. The method argument should be one of {mrtl, fixed}. `run_climate_stop_cond.py` compares the various stopping conditions.
 
 ```bash
 python run_climate.py \
     --data_dir dataset/climate/ \
     --save_dir $SAVE_DIR \
-    --experiment_name $RUN_NAME
+    --experiment_name $RUN_NAME \
+    --method mrtl
 ```
 
 ```bash
