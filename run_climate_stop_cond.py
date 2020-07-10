@@ -320,7 +320,6 @@ if __name__ == '__main__':
     print('\nStd:')
     print(summary_stats.groupby('stop_cond').std())
 
-    
     # Plot loss curves for each stopping condition
     for stop_cond in ['val_loss', 'grad_entropy', 'grad_var', 'grad_norm']:
         f = open(os.path.join(save_fp, f'results_{stop_cond}.pkl'), 'rb')

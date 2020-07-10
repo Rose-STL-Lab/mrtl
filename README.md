@@ -6,12 +6,10 @@ Paper: [Multiresolution Tensor Learning for Efficient and Interpretable Spatial 
 
 # Requirements
 
-For visualizing climate data, [PROJ](https://proj.org/) and [GEOS](https://trac.osgeo.org/geos/) need to be installed for Cartopy.
-
-For other python packages, install using `requirements.txt`. For Cartopy, numpy needs to be installed previously.
+For visualizing climate data, [PROJ](https://proj.org/) and [GEOS](https://trac.osgeo.org/geos/) need to be installed for Cartopy. Use `conda` for easy installation. An environment file is provided.
 
 ```bash
-pip install -r requirements.txt
+conda env create --name $NAME -f environment.yml
 ```
 
 # Description
@@ -23,9 +21,9 @@ Description of subfolders:
 3. train/: contains models
 4. visualization/: plotting tools
 
-# Dataset and Preprocessing
+# Basketball
 
-## Basketball
+## Dataset and Preprocessing
 STATS SportsVU player tracking data for the NBA 2012-2013 season was used [Yue et al. 2014](https://ieeexplore.ieee.org/document/7023384). As this data is proprietary, this repo only contains preprocessing code.
 
 See `raw.py` and `read_raw.py`.
@@ -38,20 +36,7 @@ python data/basketball/read_raw.py \
 ```
 The `read_raw.py` produces text files containing all the used/discarded possessions, an intermediate pickle file containing all columns `cleaned_raw.pkl`, and the final preprocessed data `full_data.pkl`.
 
-## Climate
-
-Run `get_multires.py` to preprocess the oceanic and precipitation data into separate data files for all resolutions. The files are saved in the netCDF4 format. Trailing slashes are required.
-
-```bash
-python data/climate/get_multires.py \
-    --ocean_data_fp dataset/climate/reanalysis/ \
-    --precip_fp dataset/climate/prism/ \
-    --data_dir dataset/climate/
-```
-
-
-# Training
-## Basketball
+## Training
 Run `prepare_bball.py` and `run_bball.py` with arguments to run a single experiment. `prepare_bball.py` creates the training dataset and sets miscellaneous parameters for a single trial (logger, seed, etc.)
 ```bash
 python prepare_bball.py \
@@ -75,7 +60,20 @@ python run_bball.py \
 ```
 
 Helper scripts are provided in `src/` to do 10 trials of fixed vs multi resolution and stop_condition experiments.
-## Climate
+
+# Climate
+
+## Dataset and Preprocessing
+Run `get_multires.py` to preprocess the oceanic and precipitation data into separate data files for all resolutions. The files are saved in the netCDF4 format. Trailing slashes are required.
+
+```bash
+python data/climate/get_multires.py \
+    --ocean_data_fp dataset/climate/reanalysis/ \
+    --precip_fp dataset/climate/prism/ \
+    --data_dir dataset/climate/
+```
+
+## Training
 Run `run_climate.py` with arguments to run a single experiment. The method argument should be one of {`mrtl`, `fixed`, `random`}. `run_climate_stop_cond.py` compares the various stopping conditions.
 
 ```bash

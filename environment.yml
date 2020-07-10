@@ -1,11 +1,9 @@
-name: /home/theo/research/mrtl/envs
 channels:
-  - defaults
+  - conda-forge
 dependencies:
   - netcdf4
-  - pytorch
+  - pytorch::pytorch
   - matplotlib
-  - torchvision
   - dask
   - bottleneck
   - seaborn
@@ -17,8 +15,7 @@ dependencies:
   - python-cdo
   - hdf5
   - cmocean
-  - scikit-image
   - cudatoolkit=10.2
   - rasterio
-prefix: /home/theo/research/mrtl/envs
-
+  - tqdm
+  - scikit-learn

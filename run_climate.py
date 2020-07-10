@@ -2,18 +2,19 @@ import argparse
 import os
 import pickle
 
+import cmocean
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 import torch
 import torch.utils.data
-import utils
 import xarray as xr
+
+import utils
 from cp_als import cp_decompose
 from data.climate.dataset import getData
 from train.climate.model import my_regression, my_regression_low
 from train.climate.multi import Multi
-import cmocean
 
 sns.set()
 
@@ -41,21 +42,21 @@ if __name__ == '__main__':
     # list of dims to use for MRTL (reverse order so that smallest is first)
     dims = [[4, 9], [8, 18], [12, 27], [24, 54], [40, 90], [60, 135],
             [80, 180]]
-        
+
     K = args.K  # rank of CP decomposition
     random_seed = 1000
 
-    #### Full-rank
+    # Full-rank
     show_preds = False
     plot_weights = False
     period = 1
 
     stop_cond = 'val_loss'
     max_epochs_full = 2
-    max_epochs_low  =30
+    max_epochs_low = 30
     do_normalize_X = False
     do_normalize_y = True
-    
+
     # INSTANTIATE MODEL
     multi = Multi(batch_size=10, stop_cond=stop_cond)
 
@@ -69,9 +70,9 @@ if __name__ == '__main__':
     multi.counter_thresh = 4  # number of increases in loss before stopping
 
     if args.method == 'mrtl':
-        start_dim_idx = 0   # index of resolution to start training on 
-        end_dim_idx = 1     # index of transition resolution
-        new_end_dim_idx = 6 # index of final resolution
+        start_dim_idx = 0  # index of resolution to start training on
+        end_dim_idx = 1  # index of transition resolution
+        new_end_dim_idx = 6  # index of final resolution
         multi.model = my_regression(lead=lead,
                                     input_shape=dims[start_dim_idx],
                                     output_shape=1)
@@ -90,11 +91,11 @@ if __name__ == '__main__':
                                         input_shape=dims[start_dim_idx],
                                         output_shape=1,
                                         K=K)
-    
+
     # SET LEARNING RATES ACROSS RESOLUTOINS
     ratios = [dims[idx + 1][0] / dims[idx][0] for idx in range(len(dims) - 1)]
     lrs = np.zeros(len(dims))
-    
+
     if args.method != 'random':
         for i, lr in enumerate(lrs):
             if not i:
@@ -117,19 +118,22 @@ if __name__ == '__main__':
             dim = dims[idx]
 
             if multi.spatial_reg:
-                multi.K = utils.create_kernel(dim, sigma=.05, device=multi.device)
+                multi.K = utils.create_kernel(dim,
+                                              sigma=.05,
+                                              device=multi.device)
 
             print('\n\nLearning for resolution {0}x{1} (FULL RANK)'.format(
                 dim[0], dim[1]))
 
             # CREATE DATASET
-            train_set, val_set, test_set = getData(dim,
-                                                   data_fp=data_fp,
-                                                   lead_time=lead,
-                                                   do_normalize_X=do_normalize_X,
-                                                   do_normalize_y=do_normalize_y,
-                                                   random_seed=random_seed,
-                                                   ppt_file='ppt_midwest.nc')
+            train_set, val_set, test_set = getData(
+                dim,
+                data_fp=data_fp,
+                lead_time=lead,
+                do_normalize_X=do_normalize_X,
+                do_normalize_y=do_normalize_y,
+                random_seed=random_seed,
+                ppt_file='ppt_midwest.nc')
             #     break
             multi.init_loaders(train_set, val_set)  # initialize loaders
 
@@ -144,11 +148,13 @@ if __name__ == '__main__':
             if idx != end_dim_idx:
                 full_finegrain_epochs.append(len(full_train_loss))
 
-                # get ratio for number of gridpoints in next dims and current set
+                # get ratio for number of gridpoints in
+                # next dims and current set
                 ratio = (dims[idx + 1][0] / dims[idx][0])**2
                 # Finegrain weights and update optimizer
                 new_w = torch.nn.functional.interpolate(
-                    multi.model.w.clone().detach().cpu().reshape(lead, 2, *dim),
+                    multi.model.w.clone().detach().cpu().reshape(
+                        lead, 2, *dim),
                     size=dims[idx + 1],
                     align_corners=False,
                     mode='bilinear') / ratio
@@ -156,8 +162,7 @@ if __name__ == '__main__':
                 multi.model.w = torch.nn.Parameter(new_w.to(multi.device),
                                                    requires_grad=True)
 
-
-        ###### CP DECOMPOSITION #######
+        # CP DECOMPOSITION
         w = multi.model.w.detach().clone()
         b_full = multi.model.b.detach().clone()
 
@@ -182,8 +187,8 @@ if __name__ == '__main__':
         multi.model.C = torch.nn.Parameter(factors[2].detach().clone(),
                                            requires_grad=True)
         multi.model.b = torch.nn.Parameter(b_full, requires_grad=True)
-    
-    ####### Begin low-rank training #######
+
+    # Begin low-rank training
     multi.spatial_reg = False
     multi.spatial_reg_coef = .01
     multi.reg = None
@@ -263,8 +268,7 @@ if __name__ == '__main__':
         pickle.dump(latent_factors, f)
         f.close()
 
-        
-    ##### PLOT RESULTS #####
+    # PLOT RESULTS
     max_abs = np.max(np.abs(latent_factors))  # for scaling
     for idx in np.arange(K):
         # TODO fix figures (GEOS errors)
@@ -276,7 +280,8 @@ if __name__ == '__main__':
                          np.linspace(-max_abs, max_abs, 15),
                          cmap='cmo.balance')
         fig.savefig(os.path.join(save_fp, f'latent-factor{idx}_contourf.png'),
-                    dpi=200, bbox_inches='tight')
+                    dpi=200,
+                    bbox_inches='tight')
         # plt.show()
 
         # imshow plot
@@ -288,5 +293,6 @@ if __name__ == '__main__':
                        cmap='cmo.balance')
         cb = fig.colorbar(cp, orientation='vertical', fraction=.021)
         fig.savefig(os.path.join(save_fp, f'latent-factor{idx}_imshow.png'),
-                    dpi=200, bbox_inches='tight')
+                    dpi=200,
+                    bbox_inches='tight')
 #         plt.show()

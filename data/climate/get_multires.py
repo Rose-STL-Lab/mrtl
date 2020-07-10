@@ -1,7 +1,7 @@
 import argparse
 import os
 from datetime import datetime
-from copy import deepcopy
+
 import numpy as np
 import torch
 import xarray as xr
@@ -11,6 +11,7 @@ from matplotlib.path import Path
 from torch.nn.functional import interpolate
 
 cdo = Cdo()
+
 
 def convertLons(lons):
     # Change longitude from [0,360] to [-180,180]
@@ -168,26 +169,27 @@ def get_multi_res(model,
         lon = getPointsForRange(minmax=lonlat_range[:2], n=dim[1])
         lat = getPointsForRange(minmax=lonlat_range[2:], n=dim[0])
         new_data = interpolate(tensor_data,
-                           size=dim,
-                           mode='bilinear',
-                           align_corners=False).squeeze(1)  # downsample
+                               size=dim,
+                               mode='bilinear',
+                               align_corners=False).squeeze(1)  # downsample
         new_data = xr.DataArray(new_data.numpy(),
                                 coords={
                                     'time': data.time,
                                     'lon': lon,
                                     'lat': lat
                                 },
-                            dims=['time', 'lat', 'lon'])
+                                dims=['time', 'lat', 'lon'])
         new_data.lon.attrs = data.lon.attrs
         new_data.lat.attrs = data.lat.attrs
         new_data.to_netcdf(os.path.join(out_fp, f'{var}_{dim[0]}x{dim[1]}.nc'))
 
         # Get area of each gridcell and write to file
         gridarea_fn = f'gridarea_{dim[0]}x{dim[1]}.nc'
-        if not(gridarea_fn in os.listdir(out_fp)):
+        if not (gridarea_fn in os.listdir(out_fp)):
             infile = os.path.join(out_fp, f'{var}_{dim[0]}x{dim[1]}.nc')
             outfile = os.path.join(out_fp, gridarea_fn)
             cdo.gridarea(input=infile, output=outfile)
+
 
 if __name__ == '__main__':
 
