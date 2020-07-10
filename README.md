@@ -6,10 +6,11 @@ Paper: [Multiresolution Tensor Learning for Efficient and Interpretable Spatial 
 
 # Requirements
 
-For visualizing climate data, [PROJ](https://proj.org/) and [GEOS](https://trac.osgeo.org/geos/) need to be installed for Cartopy. Use `conda` for easy installation. An environment file is provided.
+Make sure `miniconda` or `Anaconda` is installed (https://docs.anaconda.com/anaconda/install/). Create and activate the environment using the provided environment file.
 
 ```bash
 conda env create --name $NAME -f environment.yml
+conda activate $NAME
 ```
 
 # Description
@@ -64,21 +65,29 @@ Helper scripts are provided in `src/` to do 10 trials of fixed vs multi resoluti
 # Climate
 
 ## Dataset and Preprocessing
-Run `get_multires.py` to preprocess the oceanic and precipitation data into separate data files for all resolutions. The files are saved in the netCDF4 format. Trailing slashes are required.
+There are two datasets, one consisting of precipitation over the U.S. (PRISM) and one consisting of global sea surface salinity and sea surface temperature (EN4).  
+- PRISM data was accessed at https://prism.oregonstate.edu/. Monthly precipitation (ppt) data from 1895-2019 was used. Data from 1895-1980 can be downloaded from the "Historical Past" page, and data from 1981-2018 can be downloaded from the "Recent Years" page.  
+- EN4 data was accessed at https://www.metoffice.gov.uk/hadobs/en4/download-en4-2-1.html. Objective analyses from 1900-2018 were used.  
+
+To run our code, first download all raw data into a single directory (downloaded files are in .zip format). Then, unzip the files and aggregate the data using the following command.
+```bash
+python data/climate/extract_data.py \
+    --data_dir $DATA_DIR
+```
+
+Next, preprocess the oceanic and precipitation data into separate data files for all resolutions, using the following command. The files are saved in the netCDF4 format.
 
 ```bash
 python data/climate/get_multires.py \
-    --ocean_data_fp dataset/climate/reanalysis/ \
-    --precip_fp dataset/climate/prism/ \
-    --data_dir dataset/climate/
+    --data_dir $DATA_DIR
 ```
 
 ## Training
-Run `run_climate.py` with arguments to run a single experiment. The method argument should be one of {`mrtl`, `fixed`, `random`}. `run_climate_stop_cond.py` compares the various stopping conditions.
+Run `run_climate.py` with arguments to run a single experiment. The method argument should be one of {`mrtl`, `fixed`, `random`}. `run_climate_stop_cond.py` compares the various stopping conditions. Results are saved in `$SAVE_DIR`.
 
 ```bash
 python run_climate.py \
-    --data_dir dataset/climate/ \
+    --data_dir $DATA_DIR \
     --save_dir $SAVE_DIR \
     --experiment_name $RUN_NAME \
     --method mrtl
@@ -87,7 +96,7 @@ python run_climate.py \
 
 ```bash
 python run_climate_stop_cond.py \
-    --data_dir dataset/climate/ \
+    --data_dir $DATA_DIR \
     --save_dir $SAVE_DIR \
     --experiment_name $RUN_NAME \
     --n_trials $TRIALS
