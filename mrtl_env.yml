@@ -1,0 +1,24 @@
+name: /home/theo/research/mrtl/envs
+channels:
+  - defaults
+dependencies:
+  - netcdf4
+  - pytorch
+  - matplotlib
+  - torchvision
+  - dask
+  - bottleneck
+  - seaborn
+  - jupyter
+  - cdo
+  - cartopy
+  - xarray
+  - python=3.7
+  - python-cdo
+  - hdf5
+  - cmocean
+  - scikit-image
+  - cudatoolkit=10.2
+  - rasterio
+prefix: /home/theo/research/mrtl/envs
+
