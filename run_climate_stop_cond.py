@@ -21,26 +21,23 @@ sns.set()
 
 if __name__ == '__main__':
 
-    # Set directories
-    # data_fp = './data/'
-    # save_fp = './results/stopping-cond/'
-    save_results = True
-
-    # Arguments Parse
+    # Parse arguments
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_dir', dest='data_dir')
     parser.add_argument('--save_dir', dest='save_dir')
     parser.add_argument('--experiment_name', dest='experiment_name')
     parser.add_argument('--n_trials', dest='n_trials', type=int)
+    parser.add_argument('--K', dest='K', type=int)
     args = parser.parse_args()
     data_fp = args.data_dir
     save_fp = args.save_dir
 
     save_fp = os.path.join(save_fp, args.experiment_name)
     n_trials = args.n_trials
+    K = args.K  # rank of CP decomposition
 
     if not os.path.isdir(save_fp):
-        os.mkdir(save_fp)
+        os.makedirs(save_fp)
 
     lead = 6
     # list of dims to use for MRTL (reverse order so that smallest is first)
@@ -187,8 +184,6 @@ if __name__ == '__main__':
                 b_full = multi.model.b.detach().clone()
 
             # Factorize the weight tensor
-            K = 3  # rank of the decomposition
-
             weights, factors = cp_decompose(w,
                                             K,
                                             max_iter=200,
@@ -305,34 +300,19 @@ if __name__ == '__main__':
             })
 
         # Save results for given stopping condition
-        if save_results:
-            f = open(os.path.join(save_fp, f'results_{stop_cond}.pkl'), 'wb')
-            pickle.dump(all_data, f)
-            f.close()
+        f = open(os.path.join(save_fp, f'results_{stop_cond}.pkl'), 'wb')
+        pickle.dump(all_data, f)
+        f.close()
 
     # Save results for all stopping conditions
-    if save_results:
-        f = open(os.path.join(save_fp, f'results_all_stop_conds.pkl'), 'wb')
-        pickle.dump(pd.DataFrame(res).set_index('trial'), f)
-        f.close()
+    f = open(os.path.join(save_fp, f'results_all_stop_conds.pkl'), 'wb')
+    pickle.dump(pd.DataFrame(res).set_index('trial'), f)
+    f.close()
 
     # ### Load data for analysis
     f = open(os.path.join(save_fp, 'results_all_stop_conds.pkl'), 'rb')
     summary_stats = pickle.load(f)
     f.close()
-
-    f = open(os.path.join(save_fp, f'results_{stop_cond}.pkl'), 'rb')
-    val_loss_results = pickle.load(f)
-    f.close()
-
-    #     # Pre-computed results
-    #     f = open('../results/all_stop_conds_df_thresh_4.pkl','rb')
-    #     summary_stats = pickle.load(f)
-    #     f.close()
-
-    #     f = open('../results/{}_temp3.pkl'.format('val_loss'),'rb')
-    #     val_loss_results = pickle.load(f)
-    #     f.close()
 
     # #### view statistics
     print('Mean:')
@@ -340,28 +320,35 @@ if __name__ == '__main__':
     print('\nStd:')
     print(summary_stats.groupby('stop_cond').std())
 
-    fig, ax = plt.subplots()
-    for trial in np.arange(len(val_loss_results.keys())) + 1:
-        ax.plot(val_loss_results[trial]['time']['full'],
-                val_loss_results[trial]['val_loss']['full'],
-                label=trial)
-        for t in val_loss_results[trial]['finegrain_times']['full'][:-1]:
-            ax.axvline(t)
-    ax.legend()
-    ax.set_title('Full rank loss')
-    ax.set_ylabel('Loss (MSE)')
-    ax.set_xlabel('Time (s)')
-    # TODO savefig instead plt.show()
-    plt.show()
+    
+    # Plot loss curves for each stopping condition
+    for stop_cond in ['val_loss', 'grad_entropy', 'grad_var', 'grad_norm']:
+        f = open(os.path.join(save_fp, f'results_{stop_cond}.pkl'), 'rb')
+        results = pickle.load(f)
+        f.close()
 
-    fig, ax = plt.subplots()
-    for trial in np.arange(len(val_loss_results.keys())) + 1:
-        ax.plot(val_loss_results[trial]['time']['low'],
-                val_loss_results[trial]['val_loss']['low'],
-                label=trial)
-    ax.legend()
-    ax.set_title('Low rank loss')
-    ax.set_ylabel('Loss (MSE)')
-    ax.set_xlabel('Time (s)')
-    # TODO savefig instead plt.show()
-    plt.show()
+        fig, ax = plt.subplots()
+        for trial in np.arange(len(results.keys())) + 1:
+            ax.plot(results[trial]['time']['full'],
+                    results[trial]['val_loss']['full'],
+                    label=trial)
+            for t in results[trial]['finegrain_times']['full'][:-1]:
+                ax.axvline(t)
+        ax.legend()
+        ax.set_title(f'Full rank loss ({stop_cond})')
+        ax.set_ylabel('Loss (MSE)')
+        ax.set_xlabel('Time (s)')
+        fig.savefig(os.path.join(save_fp, f'full-rank-loss_{stop_cond}.png'),
+                    dpi=200, bbox_inches='tight')
+
+        fig, ax = plt.subplots()
+        for trial in np.arange(len(results.keys())) + 1:
+            ax.plot(results[trial]['time']['low'],
+                    results[trial]['val_loss']['low'],
+                    label=trial)
+        ax.legend()
+        ax.set_title(f'Low rank loss ({stop_cond})')
+        ax.set_ylabel('Loss (MSE)')
+        ax.set_xlabel('Time (s)')
+        fig.savefig(os.path.join(save_fp, f'low-rank-loss_{stop_cond}.png'),
+                    dpi=200, bbox_inches='tight')

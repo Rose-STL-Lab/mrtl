@@ -24,6 +24,7 @@ if __name__ == '__main__':
     # Arguments Parse
     parser = argparse.ArgumentParser()
     parser.add_argument('--method', dest='method')
+    parser.add_argument('--K', dest='K', type=int)
     parser.add_argument('--data_dir', dest='data_dir')
     parser.add_argument('--save_dir', dest='save_dir')
     parser.add_argument('--experiment_name', dest='experiment_name')
@@ -40,6 +41,9 @@ if __name__ == '__main__':
     # list of dims to use for MRTL (reverse order so that smallest is first)
     dims = [[4, 9], [8, 18], [12, 27], [24, 54], [40, 90], [60, 135],
             [80, 180]]
+        
+    K = args.K  # rank of CP decomposition
+    random_seed = 1000
 
     #### Full-rank
     show_preds = False
@@ -47,20 +51,10 @@ if __name__ == '__main__':
     period = 1
 
     stop_cond = 'val_loss'
-    max_epochs = 2
+    max_epochs_full = 2
+    max_epochs_low  =30
     do_normalize_X = False
     do_normalize_y = True
-
-    # DIMENSIONS TO TRAIN ON
-    
-    if args.method == 'mrtl':
-        start_dim_idx = 0   # index of resolution to start training on 
-        end_dim_idx = 1     # index of transition resolution
-        new_end_dim_idx = 6 # index of final resolution
-    elif args.method == 'fixed':
-        start_dim_idx = 6
-        end_dim_idx = 6
-        new_end_dim_idx = 6
     
     # INSTANTIATE MODEL
     multi = Multi(batch_size=10, stop_cond=stop_cond)
@@ -74,108 +68,125 @@ if __name__ == '__main__':
     multi.spatial_reg_coef = .25
     multi.counter_thresh = 4  # number of increases in loss before stopping
 
-    multi.model = my_regression(lead=lead,
-                                input_shape=dims[start_dim_idx],
-                                output_shape=1)
+    if args.method == 'mrtl':
+        start_dim_idx = 0   # index of resolution to start training on 
+        end_dim_idx = 1     # index of transition resolution
+        new_end_dim_idx = 6 # index of final resolution
+        multi.model = my_regression(lead=lead,
+                                    input_shape=dims[start_dim_idx],
+                                    output_shape=1)
+    elif args.method == 'fixed':
+        start_dim_idx = 6
+        end_dim_idx = 6
+        new_end_dim_idx = 6
+        multi.model = my_regression(lead=lead,
+                                    input_shape=dims[start_dim_idx],
+                                    output_shape=1)
+    elif args.method == 'random':
+        start_dim_idx = 6
+        end_dim_idx = 6
+        new_end_dim_idx = 6
+        multi.model = my_regression_low(lead=lead,
+                                        input_shape=dims[start_dim_idx],
+                                        output_shape=1,
+                                        K=K)
     
     # SET LEARNING RATES ACROSS RESOLUTOINS
     ratios = [dims[idx + 1][0] / dims[idx][0] for idx in range(len(dims) - 1)]
     lrs = np.zeros(len(dims))
-    for i, lr in enumerate(lrs):
-        if not i:
-            lrs[i] = start_lr
-        else:
-            lrs[i] = lrs[i - 1] / (ratios[i - 1]**2)
+    
+    if args.method != 'random':
+        for i, lr in enumerate(lrs):
+            if not i:
+                lrs[i] = start_lr
+            else:
+                lrs[i] = lrs[i - 1] / (ratios[i - 1]**2)
 
-    random_seed = 1000
+        # Track loss
+        full_train_loss = []
+        full_val_loss = []
+        full_finegrain_epochs = []
 
-    # Track loss
-    full_train_loss = []
-    full_val_loss = []
-    full_finegrain_epochs = []
+        # for idx, dim in enumerate(dims[start_dim_idx:]):
+        for idx in np.arange(start_dim_idx, end_dim_idx + 1):
+            multi.optimizer = torch.optim.Adam(multi.model.parameters(),
+                                               lrs[idx])  # set optimizer
+            multi.scheduler = torch.optim.lr_scheduler.StepLR(multi.optimizer,
+                                                              step_size=step,
+                                                              gamma=gamma)
+            dim = dims[idx]
 
-    # for idx, dim in enumerate(dims[start_dim_idx:]):
-    for idx in np.arange(start_dim_idx, end_dim_idx + 1):
-        multi.optimizer = torch.optim.Adam(multi.model.parameters(),
-                                           lrs[idx])  # set optimizer
-        multi.scheduler = torch.optim.lr_scheduler.StepLR(multi.optimizer,
-                                                          step_size=step,
-                                                          gamma=gamma)
-        dim = dims[idx]
+            if multi.spatial_reg:
+                multi.K = utils.create_kernel(dim, sigma=.05, device=multi.device)
 
-        if multi.spatial_reg:
-            multi.K = utils.create_kernel(dim, sigma=.05, device=multi.device)
+            print('\n\nLearning for resolution {0}x{1} (FULL RANK)'.format(
+                dim[0], dim[1]))
 
-        print('\n\nLearning for resolution {0}x{1} (FULL RANK)'.format(
-            dim[0], dim[1]))
+            # CREATE DATASET
+            train_set, val_set, test_set = getData(dim,
+                                                   data_fp=data_fp,
+                                                   lead_time=lead,
+                                                   do_normalize_X=do_normalize_X,
+                                                   do_normalize_y=do_normalize_y,
+                                                   random_seed=random_seed,
+                                                   ppt_file='ppt_midwest.nc')
+            #     break
+            multi.init_loaders(train_set, val_set)  # initialize loaders
 
-        # CREATE DATASET
-        train_set, val_set, test_set = getData(dim,
-                                               data_fp=data_fp,
-                                               lead_time=lead,
-                                               do_normalize_X=do_normalize_X,
-                                               do_normalize_y=do_normalize_y,
-                                               random_seed=random_seed,
-                                               ppt_file='ppt_midwest.nc')
-        #     break
-        multi.init_loaders(train_set, val_set)  # initialize loaders
+            # TRAIN
+            multi.train(train_set,
+                        val_set,
+                        epochs=max_epochs_full,
+                        period=period,
+                        plot_weights=plot_weights)
 
-        # TRAIN
-        multi.train(train_set,
-                    val_set,
-                    epochs=max_epochs,
-                    period=period,
-                    plot_weights=plot_weights)
+            # FINEGRAIN
+            if idx != end_dim_idx:
+                full_finegrain_epochs.append(len(full_train_loss))
 
-        # FINEGRAIN
-        if idx != end_dim_idx:
-            full_finegrain_epochs.append(len(full_train_loss))
+                # get ratio for number of gridpoints in next dims and current set
+                ratio = (dims[idx + 1][0] / dims[idx][0])**2
+                # Finegrain weights and update optimizer
+                new_w = torch.nn.functional.interpolate(
+                    multi.model.w.clone().detach().cpu().reshape(lead, 2, *dim),
+                    size=dims[idx + 1],
+                    align_corners=False,
+                    mode='bilinear') / ratio
+                new_w = new_w.reshape(lead, 2, -1)
+                multi.model.w = torch.nn.Parameter(new_w.to(multi.device),
+                                                   requires_grad=True)
 
-            # get ratio for number of gridpoints in next dims and current set
-            ratio = (dims[idx + 1][0] / dims[idx][0])**2
-            # Finegrain weights and update optimizer
-            new_w = torch.nn.functional.interpolate(
-                multi.model.w.clone().detach().cpu().reshape(lead, 2, *dim),
-                size=dims[idx + 1],
-                align_corners=False,
-                mode='bilinear') / ratio
-            new_w = new_w.reshape(lead, 2, -1)
-            multi.model.w = torch.nn.Parameter(new_w.to(multi.device),
-                                               requires_grad=True)
 
-    # #### Low-rank
-    max_epochs = 30
-
-    if 'low' not in type(multi.model).__name__:
+        ###### CP DECOMPOSITION #######
         w = multi.model.w.detach().clone()
         b_full = multi.model.b.detach().clone()
 
-    # Factorize the weight tensor
-    K = 2  # rank of the decomposition
+        # CP Decomposition
+        weights, factors = cp_decompose(w,
+                                        K,
+                                        max_iter=200,
+                                        nonnegative=False,
+                                        verbose=True)
+        factors = [f * torch.pow(weights, 1 / len(factors)) for f in factors]
+        # factors = [f * weights for f in factors]
 
-    weights, factors = cp_decompose(w,
-                                    K,
-                                    max_iter=200,
-                                    nonnegative=False,
-                                    verbose=True)
-    factors = [f * torch.pow(weights, 1 / len(factors)) for f in factors]
-    # factors = [f * weights for f in factors]
-
-    # initialize low-rank model
+        # initialize low-rank model
+        multi.model = my_regression_low(lead=lead,
+                                        input_shape=dims[end_dim_idx],
+                                        output_shape=1,
+                                        K=K)
+        multi.model.A = torch.nn.Parameter(factors[0].detach().clone(),
+                                           requires_grad=True)
+        multi.model.B = torch.nn.Parameter(factors[1].detach().clone(),
+                                           requires_grad=True)
+        multi.model.C = torch.nn.Parameter(factors[2].detach().clone(),
+                                           requires_grad=True)
+        multi.model.b = torch.nn.Parameter(b_full, requires_grad=True)
+    
+    ####### Begin low-rank training #######
     multi.spatial_reg = False
     multi.spatial_reg_coef = .01
     multi.reg = None
-    multi.model = my_regression_low(lead=lead,
-                                    input_shape=dims[end_dim_idx],
-                                    output_shape=1,
-                                    K=K)
-    multi.model.A = torch.nn.Parameter(factors[0].detach().clone(),
-                                       requires_grad=True)
-    multi.model.B = torch.nn.Parameter(factors[1].detach().clone(),
-                                       requires_grad=True)
-    multi.model.C = torch.nn.Parameter(factors[2].detach().clone(),
-                                       requires_grad=True)
-    multi.model.b = torch.nn.Parameter(b_full, requires_grad=True)
 
     low_rank_dims = dims[end_dim_idx:new_end_dim_idx + 1]
     lrs = np.zeros(new_end_dim_idx - end_dim_idx + 1)
@@ -221,7 +232,7 @@ if __name__ == '__main__':
         # TRAIN
         multi.train(train_set,
                     val_set,
-                    epochs=max_epochs,
+                    epochs=max_epochs_low,
                     period=period,
                     plot_weights=plot_weights)
 
@@ -252,6 +263,8 @@ if __name__ == '__main__':
         pickle.dump(latent_factors, f)
         f.close()
 
+        
+    ##### PLOT RESULTS #####
     max_abs = np.max(np.abs(latent_factors))  # for scaling
     for idx in np.arange(K):
         # TODO fix figures (GEOS errors)
@@ -263,7 +276,7 @@ if __name__ == '__main__':
                          np.linspace(-max_abs, max_abs, 15),
                          cmap='cmo.balance')
         fig.savefig(os.path.join(save_fp, f'latent-factor{idx}_contourf.png'),
-                    dpi=200)
+                    dpi=200, bbox_inches='tight')
         # plt.show()
 
         # imshow plot
@@ -275,5 +288,5 @@ if __name__ == '__main__':
                        cmap='cmo.balance')
         cb = fig.colorbar(cp, orientation='vertical', fraction=.021)
         fig.savefig(os.path.join(save_fp, f'latent-factor{idx}_imshow.png'),
-                    dpi=200)
+                    dpi=200, bbox_inches='tight')
 #         plt.show()
