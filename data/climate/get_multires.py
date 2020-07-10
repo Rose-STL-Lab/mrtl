@@ -195,48 +195,17 @@ if __name__ == '__main__':
 
     # Arguments Parse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--precip_fp', dest='precip_fp')
-    parser.add_argument('--ocean_data_fp', dest='ocean_data_fp')
     parser.add_argument('--data_dir', dest='out_fp')
 
     args = parser.parse_args()
-    precip_fp = args.precip_fp
-    ocean_data_fp = args.ocean_data_fp
     out_fp = args.out_fp
 
     if not os.path.isdir(out_fp):
-        os.mkdir(out_fp)
+        os.makedirs(out_fp)
 
     # # Precip
-    # PRISM dataset
-    # Get file list to read into xarray
-    file_list = os.listdir(precip_fp)  # get list of files
-    file_list = [os.path.join(precip_fp, file)
-                 for file in file_list]  # append home directory
-    file_list.sort()  # sort files in chronological orderb
-
-    # Read in the data with x_array (concatenate files using 'time')
-    ppt = xr.open_mfdataset(file_list, combine='nested', concat_dim='t')
-
-    # Get datetime representation of years, months
-    year_months = zip(ppt.year.values, ppt.month.values)
-    date = [
-        datetime(year_month[0], year_month[1], 15)
-        for year_month in year_months
-    ]
-    ppt = ppt.assign({'time': date})  # assign date as a coordinate in dataset
-    ppt = ppt.assign({'lat': ppt.latitude.values[0, :]})
-    ppt = ppt.assign({'lon': ppt.longitude.values[0, :]})
-
-    # Assign coordinates
-    ppt = ppt.rename({'lat': 'y', 'lon': 'x', 'time': 't'})
-    ppt = ppt.rename({'y': 'lat', 'x': 'lon', 't': 'time'})
-
-    # Convert to DataArray
-    ppt = ppt.ppt.sel(time=slice(None, '2018-11-30'))
-
-    # Load into memory
-    ppt.load()
+    ppt = xr.open_dataset(os.path.join(out_fp, 'all_prism.nc')).rename({'__xarray_dataarray_variable__':'ppt'}).ppt
+    ppt = ppt.sel(time=slice(None, '2018-11-30'))
 
     # Interpolate precipitation to 1º resolution, then embed in larger grid
     temp = interpolate(torch.tensor(ppt.values).unsqueeze(1),
@@ -256,8 +225,9 @@ if __name__ == '__main__':
                         dims=['time', 'lat', 'lon'])
 
     # Pad the array with zeros (to match size of salinity data)
-    ppt = pad_xarray(temp, target_lon=[-179, -1], target_lat=[-20, 59])
+    ppt = pad_xarray(temp, target_lon=[-179, -1], target_lat=[59, -20])
     ppt = ppt.isel(lon=slice(None, -1), lat=slice(None, -1))
+    ppt = np.flip(ppt, axis=1)
 
     # Save to file
     ppt.to_netcdf(os.path.join(out_fp, 'ppt_lonlat.nc'))
@@ -322,13 +292,13 @@ if __name__ == '__main__':
     # # SSS/SST
     # Use CDO to remap the data onto coarser grid
     # #### Put on lat/lon grid and trim
-    for var in [['en4_so.nc', 'sss'], ['en4_temp.nc', 'sst']]:
+    for var in [['en4_so.nc', 'sss_lonlat.nc'], ['en4_temp.nc', 'sst_lonlat.nc']]:
         cdo.sellonlatbox(181,
                          360,
                          -20,
                          59,
-                         input=os.path.join(ocean_data_fp, var[0]),
-                         output=os.path.join(out_fp, f'{var[1]}_lonlat.nc'))
+                         input=os.path.join(out_fp, var[0]),
+                         output=os.path.join(out_fp, var[1]))
 
     # Get multiple resolutions of data
     for var in ['sss', 'sst', 'ppt']:
