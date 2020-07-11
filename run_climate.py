@@ -52,7 +52,7 @@ if __name__ == '__main__':
     period = 1
 
     stop_cond = 'val_loss'
-    max_epochs_full = 2
+    max_epochs_full = 5
     max_epochs_low = 30
     do_normalize_X = False
     do_normalize_y = True
@@ -64,14 +64,14 @@ if __name__ == '__main__':
     start_lr = .001
     step = 1
     gamma = .95
-    multi.reg, multi.reg_coef = None, .003
+    multi.reg, multi.reg_coef = 'l1', .003
     multi.spatial_reg = True
-    multi.spatial_reg_coef = .25
-    multi.counter_thresh = 4  # number of increases in loss before stopping
+    multi.spatial_reg_coef = 10
+    multi.counter_thresh = 3  # number of increases in loss before stopping
 
     if args.method == 'mrtl':
         start_dim_idx = 0  # index of resolution to start training on
-        end_dim_idx = 1  # index of transition resolution
+        end_dim_idx = 2  # index of transition resolution
         new_end_dim_idx = 6  # index of final resolution
         multi.model = my_regression(lead=lead,
                                     input_shape=dims[start_dim_idx],
@@ -269,10 +269,10 @@ if __name__ == '__main__':
         f.close()
 
     # PLOT RESULTS
-    max_abs = np.max(np.abs(latent_factors))  # for scaling
     for idx in np.arange(K):
         # TODO fix figures (GEOS errors)
         # contourf plot
+        max_abs = np.max(np.abs(latent_factors[:,idx]))  # for scaling
         fig, ax = utils.plot_setup(plot_range=[-150, -40, 10, 56])
         cp = ax.contourf(temp.lon,
                          temp.lat,

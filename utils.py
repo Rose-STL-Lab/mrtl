@@ -225,8 +225,8 @@ def plot_setup(plot_range=[-125.25, -66, 22.5, 50],
         facecolor='none')
     ax.add_feature(states_provinces, edgecolor='black')
     ax.coastlines()
-    # ax.set_extent(plot_range, crs=ccrs.PlateCarree())
-    # ax.add_feature(cfeature.BORDERS)
+    ax.set_extent(plot_range, crs=ccrs.PlateCarree())
+    ax.add_feature(cfeature.BORDERS)
     ax.title.set_fontsize(30)
     return fig, ax
 
