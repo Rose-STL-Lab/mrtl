@@ -47,12 +47,12 @@ if __name__ == '__main__':
     #     dims = [[8,18]]
 
     # FULL RANK
-    start_dim_idx = 0
-    end_dim_idx = 0
-    full_max_epochs = 7
-    low_max_epochs = 100
-    do_normalize_X = False
-    do_normalize_y = True
+#     start_dim_idx = 0
+#     end_dim_idx = 0
+#     full_max_epochs = 7
+#     low_max_epochs = 100
+#     do_normalize_X = False
+#     do_normalize_y = True
 
     period = 10
     plot_weights = False
@@ -82,14 +82,24 @@ if __name__ == '__main__':
 
             # INSTANTIATE MODEL
             multi = Multi(batch_size=10, stop_cond=stop_cond)
-            multi.reg, multi.reg_coef = None, .003
+            max_epochs_full = 5
+            max_epochs_low = 30
+            start_lr = .001
+            step = 1
+            gamma = .95
+            multi.reg, multi.reg_coef = 'l1', .003
             multi.spatial_reg = True
-            multi.spatial_reg_coef = .25
-            multi.counter_thresh = 4
+            multi.spatial_reg_coef = 10
+            multi.counter_thresh = 3  # number of increases in loss before stopping
+            do_normalize_X = False # normalize inputs to [0, 1]?
+            do_normalize_y = True  # normalize outputs to [0, 1]?
+            lead = 6
+            start_dim_idx = 0  # index of resolution to start training on
+            end_dim_idx = 2  # index of transition resolution
+            new_end_dim_idx = 6  # index of final resolution
             multi.model = my_regression(lead=lead,
                                         input_shape=dims[start_dim_idx],
                                         output_shape=1)
-
             random_seed = 1000
 
             # Track loss
@@ -135,23 +145,9 @@ if __name__ == '__main__':
                 # TRAIN
                 multi.train(train_set,
                             val_set,
-                            epochs=full_max_epochs,
+                            epochs=max_epochs_full,
                             period=period,
                             plot_weights=plot_weights)
-
-                # # Plot predictions
-                # if plot_results:
-                #     y_train, preds_train = multi.getPreds(train_set)
-                #     y_val, preds_val = multi.getPreds(val_set)
-
-                #     fig, ax = plotActualPreds(y_train,
-                #                               preds_train,
-                #                               title='Training')
-                #     plt.show()
-                #     fig, ax = plotActualPreds(y_val,
-                #                               preds_val,
-                #                               title='Validation')
-                #     plt.show()
 
                 # FINEGRAIN
                 if idx != end_dim_idx:
@@ -173,12 +169,6 @@ if __name__ == '__main__':
                                                        requires_grad=True)
 
             # LOW RANK
-    #         print('Begin low rank training')
-            max_epochs = 30
-            period = low_max_epochs + 1
-
-            new_end_dim_idx = 0
-
             if 'low' not in type(multi.model).__name__:
                 w = multi.model.w.detach().clone()
                 b_full = multi.model.b.detach().clone()
@@ -246,23 +236,9 @@ if __name__ == '__main__':
                 # TRAIN
                 multi.train(train_set,
                             val_set,
-                            epochs=low_max_epochs,
+                            epochs=max_epochs_low,
                             period=period,
                             plot_weights=plot_weights)
-
-                # # Plot predictions
-                # if plot_results:
-                #     y_train, preds_train = multi.getPreds(train_set)
-                #     y_val, preds_val = multi.getPreds(val_set)
-
-                #     fig, ax = plotActualPreds(y_train,
-                #                               preds_train,
-                #                               title='Training')
-                #     plt.show()
-                #     fig, ax = plotActualPreds(y_val,
-                #                               preds_val,
-                #                               title='Validation')
-                #     plt.show()
 
                 # FINEGRAIN
                 # Just need to fine grain the spatial factor

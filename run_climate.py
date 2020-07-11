@@ -30,7 +30,8 @@ if __name__ == '__main__':
     parser.add_argument('--save_dir', dest='save_dir')
     parser.add_argument('--experiment_name', dest='experiment_name')
     args = parser.parse_args()
-
+    K = args.K  # rank of CP decomposition
+    
     # Get paths and create directories if necessary
     data_fp = args.data_dir
     save_fp = args.save_dir
@@ -38,38 +39,32 @@ if __name__ == '__main__':
     if not os.path.isdir(save_fp):
         os.makedirs(save_fp)
 
-    lead = 6
     # list of dims to use for MRTL (reverse order so that smallest is first)
     dims = [[4, 9], [8, 18], [12, 27], [24, 54], [40, 90], [60, 135],
             [80, 180]]
 
-    K = args.K  # rank of CP decomposition
-    random_seed = 1000
-
-    # Full-rank
-    show_preds = False
+    period = 1 # how often to display loss (every 'period' epochs)
     plot_weights = False
-    period = 1
-
-    stop_cond = 'val_loss'
-    max_epochs_full = 5
-    max_epochs_low = 30
-    do_normalize_X = False
-    do_normalize_y = True
-
+    random_seed = 1000 
+    
     # INSTANTIATE MODEL
+    stop_cond = 'val_loss'
     multi = Multi(batch_size=10, stop_cond=stop_cond)
 
-    # HYPERPARAMETERS
-    start_lr = .001
-    step = 1
-    gamma = .95
-    multi.reg, multi.reg_coef = 'l1', .003
-    multi.spatial_reg = True
-    multi.spatial_reg_coef = 10
-    multi.counter_thresh = 3  # number of increases in loss before stopping
-
+    # SET HYPERPARAMETERS (based on method)
     if args.method == 'mrtl':
+        max_epochs_full = 5
+        max_epochs_low = 30
+        start_lr = .001
+        step = 1
+        gamma = .95
+        multi.reg, multi.reg_coef = 'l1', .003
+        multi.spatial_reg = True
+        multi.spatial_reg_coef = 10
+        multi.counter_thresh = 3  # number of increases in loss before stopping
+        do_normalize_X = False # normalize inputs to [0, 1]?
+        do_normalize_y = True  # normalize outputs to [0, 1]?
+        lead = 6
         start_dim_idx = 0  # index of resolution to start training on
         end_dim_idx = 2  # index of transition resolution
         new_end_dim_idx = 6  # index of final resolution
@@ -77,6 +72,18 @@ if __name__ == '__main__':
                                     input_shape=dims[start_dim_idx],
                                     output_shape=1)
     elif args.method == 'fixed':
+        max_epochs_full = 5
+        max_epochs_low = 50
+        start_lr = .001
+        step = 1
+        gamma = .95
+        multi.reg, multi.reg_coef = 'l1', .003
+        multi.spatial_reg = True
+        multi.spatial_reg_coef = 10
+        multi.counter_thresh = 3  # number of increases in loss before stopping
+        do_normalize_X = False # normalize inputs to [0, 1]?
+        do_normalize_y = True  # normalize outputs to [0, 1]?
+        lead = 6
         start_dim_idx = 6
         end_dim_idx = 6
         new_end_dim_idx = 6
@@ -84,6 +91,18 @@ if __name__ == '__main__':
                                     input_shape=dims[start_dim_idx],
                                     output_shape=1)
     elif args.method == 'random':
+        max_epochs_full = 5
+        max_epochs_low = 70
+        start_lr = .0001
+        step = 1
+        gamma = .95
+        multi.reg, multi.reg_coef = 'l1', .003
+        multi.spatial_reg = True
+        multi.spatial_reg_coef = 10
+        multi.counter_thresh = 3  # number of increases in loss before stopping
+        do_normalize_X = False # normalize inputs to [0, 1]?
+        do_normalize_y = True  # normalize outputs to [0, 1]?
+        lead = 6
         start_dim_idx = 6
         end_dim_idx = 6
         new_end_dim_idx = 6
@@ -258,6 +277,20 @@ if __name__ == '__main__':
             new_C = new_C.squeeze(0).reshape(K, -1).T
             multi.model.C = torch.nn.Parameter(new_C.to(multi.device),
                                                requires_grad=True)
+    
+    print('\n\nRESULTS:')
+    if args.method != 'random':
+        print(f"Training time for full rank (s): {multi.train_times['full'][-1]:.4f}")
+    else:
+        print(f"Training time for full rank (s): N/A (low rank is initialized randomly)")
+    print(f"Training time for low rank (s):  {multi.train_times['low'][-1]:.4f}")
+    
+    if args.method != 'random':
+        print(f"Val loss after full rank (MSE):  {np.min(multi.val_loss['full'][-1]):.4f}")
+    else:
+        print(f"Val loss after full rank (MSE):  N/A (low rank is initialized randomly)")
+    print(f"Val loss after low rank (MSE):   {np.min(multi.val_loss['low'][-1]):.4f}")
+    print('\n')
 
     # Plot (and save) Latent Factors
     temp = xr.open_dataarray(
@@ -270,7 +303,6 @@ if __name__ == '__main__':
 
     # PLOT RESULTS
     for idx in np.arange(K):
-        # TODO fix figures (GEOS errors)
         # contourf plot
         max_abs = np.max(np.abs(latent_factors[:,idx]))  # for scaling
         fig, ax = utils.plot_setup(plot_range=[-150, -40, 10, 56])
