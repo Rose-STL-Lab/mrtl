@@ -80,32 +80,64 @@ class ClimateDataset(torch.utils.data.Dataset):
         self.time_values = pd.to_datetime(self.X.time.values) 
         #print("self.time_values")
         #print(self.time_values)
-     
+        #print("len(self.time_values)")
+        #print(len(self.time_values))
+        #print("len(self.time_values)")
+        #self.valid_time_idx = list(range(0,self.time_values))
+        #for idx, time in enumerate(self.time_values):
+          #print(time + relativedelta(months=+self.lead))
+          #if time + relativedelta(months=+self.lead) in self.time_values:
+            #print("time + relativedelta(months=+self.lead)")
+            #print(time + relativedelta(months=+self.lead))
+
+
+        #if lead==1:  
         self.valid_time_idx = [idx for idx, time in enumerate(self.time_values) if time + relativedelta(months=+12) in self.time_values]
-       
+        #if lead==3:  
+        #print("hih")
+        #print(self.time_values)
+
+        #self.valid_time_idx = [idx for idx, time in enumerate(self.time_values) if time + relativedelta(months=+12) in self.time_values]
+        #if lead==12:  
+        #self.valid_time_idx = [idx for idx, time in enumerate(self.time_values) if time + relativedelta(months=+12) in self.time_values]
+
+        #print("self.valid_time_idx in __init_")
+        #print(self.valid_time_idx)
+        #print("len(self.valid_time_idx) in __init_")
+        #print(len(self.valid_time_idx))
         #efill with 0 because we're looking at anomalies after we detrend and deseasonalize, 
         #so everythhing is centered around 0, so thhis is is a neutral value, and when you multiply it by anything the output is 0
         self.X = self.X.fillna(0)  # Fill NaN values with 0
         self.X = np.array(self.X, dtype=np.float32)
         self.y = np.array(self.y, dtype=np.float32)
-        
-
 
     def __len__(self):
-      
+        #print("(len(self.time_values))")
+        #print((len(self.time_values)))
+        #print(len(self.valid_time_idx))
         return (len(self.valid_time_idx))
-    
+        #return (len(self.time_values))
 
     def __getitem__(self, idx):
         # Sample consists of:
         #     - month label, corresponding to output month
         #     - input data, corresponding to lead+1 months of oceanic data
         #     - output, corresponding to precipitation in the midwest
-       
+        #print("idx")
+        #print(idx)
+        #print("first idx before change")
+        #print(idx)
+        #print("self.valid_time_idx in __getitem__")
+        #print(self.valid_time_idx)
         
         idx = self.valid_time_idx[idx]
-
-        
+        #print("idx")
+        #print(idx)
+        #print("idx + self.lead")
+   
+        #print(idx + self.lead)
+        #print("len(self.X[idx:idx + 1])")
+        #print(len(self.X[idx:idx + 1]))
         #since were trying to predict 12 months into the future, thhat is equivalent to 1 year, so the amount of lagged columns should be 1    
         X, y = self.X[idx:idx + self.lead], self.y[idx + self.lead]
         
@@ -124,63 +156,30 @@ def get_resolution(da,months):
         count+=1
         if count==months:
             if i==(months-1):
-              #print("da.time.values[i-(months-1)] in first if")
-              #print(da.time.values[i-(months-1)])
-              #print("da.time.values[i] in first if")
-              #print(da.time.values[i])
-
-              #get the average precipitation from all of the lon and lat for a season
-              new_da=da.sel(time=slice(da.time.values[i-(months-1)],da.time.values[i])).sum(dim='time')/months
-              dates.append(da.time.values[i])
-              new_ds=new_da.to_dataset()
-              date_lst=[da.time.values[i]]
-              new_ds['time']=date_lst
-              #print("months in first if")
-              #print(months)
-              #print("i in first if")
-
-              #print(i)
-
-             
+                #get the average precipitation from all of the lon and lat for a season
+                new_da=da.sel(time=slice(da.time.values[i-(months-1)],da.time.values[i])).sum(dim='time')/months
+                dates.append(da.time.values[i])
+                new_ds=new_da.to_dataset()
+                date_lst=[da.time.values[i]]
+                new_ds['date']=date_lst
             if i>(months-1):
-                """
                 if first:
-                  new_da2=da.sel(time=slice(da.time.values[i-(months-1)],da.time.values[i])).sum(dim='time')/months
-                  new_ds2=new_da2.to_dataset()
-                  date_lst2=[da.time.values[i]]
-                  dates.append(da.time.values[i])
-                  new_ds2['time']=date_lst2
-                  new_ds=new_ds2
-                  #new_ds=xr.concat([new_ds,new_ds2],dim='time')
-                  print("i in second if")
-                  print(i)
-                  first=False
-                  #continue
-                  """
-                if first==False or first==True:
+                    new_da2=da.sel(time=slice(da.time.values[i-(months-1)],da.time.values[i])).sum(dim='time')/months
+                    new_ds2=new_da2.to_dataset()
+                    date_lst2=[da.time.values[i]]
+                    dates.append(da.time.values[i])
+                    new_ds2['time']=date_lst2
+                    new_ds=new_ds2
+                    first=False
+                if first==False:
                 #append all of the datasets together
-                  """
-                  print("month3 in third if ")
-                  print(months)
-                  print("da.time.values[i-(months-1)] in third if")
-                  print(da.time.values[i-(months-1)])
-                  print("da.time.values[i] in third if")
-                  print(da.time.values[i])
-                  """
-                  new_da2=da.sel(time=slice(da.time.values[i-(months-1)],da.time.values[i])).sum(dim='time')/months
-                  new_ds2=new_da2.to_dataset()
-                  date_lst2=[da.time.values[i]]
-                  dates.append(da.time.values[i])
-                  new_ds2['time']=date_lst2
+                    new_da2=da.sel(time=slice(da.time.values[i-(months-1)],da.time.values[i])).sum(dim='time')/months
+                    new_ds2=new_da2.to_dataset()
+                    date_lst2=[da.time.values[i]]
+                    dates.append(da.time.values[i])
+                    new_ds2['time']=date_lst2
 
-                  new_ds=xr.concat([new_ds,new_ds2],dim='time')
-                  #print("i in third if")
-                  #print(i)
-                  """
-                  print("time 3")
-                  print(new_ds.time)
-                  """
-                  
+                    new_ds=xr.concat([new_ds,new_ds2],dim='time')
                 
             count=0   
     return new_ds
@@ -212,34 +211,29 @@ def getData(dim,
     precip_fn = os.path.join(data_fp, f'ppt_{dim[0]}x{dim[1]}.nc')
     if lead_time==1:
       X1 = xr.open_dataarray(sss_fn).sel(
-          time=slice(f'{start_year}-12-01', '2018-01-31'))
+          time=slice(f'{start_year}-01-01', '2018-01-31'))
       X1=get_resolution(X1,12)
-      
+      #print("len(X1.time)")
+      #print(len(X1.time))
 
 
 
-      X2 = xr.open_dataarray(sst_fn).sel(time=slice(f'{start_year}-12-01', '2018-01-31'))
+      X2 = xr.open_dataarray(sst_fn).sel(time=slice(f'{start_year}-01-01', '2018-01-31'))
       X2=get_resolution(X2,12)
       #print("len(X2.time)")
       #print(len(X2.time))
       X3 = xr.open_dataarray(precip_fn).sel(
-          time=slice(f'{start_year}-12-01', '2018-01-31'))
-      #print("X3.time")
-      #print(X3.time)
+          time=slice(f'{start_year}-01-01', '2018-01-31'))
       X3=get_resolution(X3,12)
       # make sure time units are the same for different variables
       X3['time'] = X2.time
 
       X = xr.concat([X1.da, X2.da],dim='var')  # concatenate variables into single dataarray
 
-      #print("X.time in 1")
-      #print(X.time)
-     
-
       y_fn = os.path.join(data_fp, ppt_file)
 
       y = xr.open_dataarray(y_fn).sel(
-          time=slice('{}-12-01'.format(start_year), '2018-01-31'))
+          time=slice('{}-01-01'.format(start_year), '2018-01-31'))
       #print("y first len")
       #print(len(y))
       y=get_resolution(y,12).da
@@ -247,30 +241,26 @@ def getData(dim,
       #print(len(y.time))
     if lead_time==4:
       X1 = xr.open_dataarray(sss_fn).sel(
-          time=slice(f'{start_year}-12-01', '2018-01-31'))
+          time=slice(f'{start_year}-01-01', '2018-01-31'))
       X1=get_resolution(X1,3)
       #print("len(X1.time)")
       #print(len(X1.time))
-      X2 = xr.open_dataarray(sst_fn).sel(time=slice(f'{start_year}-12-01', '2018-01-31'))
-      #print("X2.time")
-      #print(X2.time)
+      X2 = xr.open_dataarray(sst_fn).sel(time=slice(f'{start_year}-01-01', '2018-01-31'))
       X2=get_resolution(X2,3)
       #print("len(X2.time)")
       #print(len(X2.time))
       X3 = xr.open_dataarray(precip_fn).sel(
-          time=slice(f'{start_year}-12-01', '2018-01-31'))
+          time=slice(f'{start_year}-01-01', '2018-01-31'))
       X3=get_resolution(X3,3)
       # make sure time units are the same for different variables
       X3['time'] = X2.time
 
       X = xr.concat([X1.da, X2.da],dim='var')  # concatenate variables into single dataarray
-      #print("X.time in 4")
-      #print(X.time)
 
       y_fn = os.path.join(data_fp, ppt_file)
 
       y = xr.open_dataarray(y_fn).sel(
-          time=slice('{}-12-01'.format(start_year), '2018-12-31'))
+          time=slice('{}-01-01'.format(start_year), '2018-01-31'))
       #print("y first len")
       #print(len(y))
       y=get_resolution(y,3).da
@@ -278,42 +268,36 @@ def getData(dim,
       #print(len(y.time))
     if lead_time==12:
       X1 = xr.open_dataarray(sss_fn).sel(
-          time=slice(f'{start_year}-12-01', '2018-01-31'))
-      #print("X1.time again")
-      #print(X1.time)
+          time=slice(f'{start_year}-01-01', '2018-01-31'))
       X1=get_resolution(X1,1)
-      #print("X1.time 3")
-      #print(X1.time)
-  
+      #print("len(X1.time)")
+      #print(len(X1.time))
 
 
-      X2 = xr.open_dataarray(sst_fn).sel(time=slice(f'{start_year}-12-01', '2018-01-31'))
+
+      X2 = xr.open_dataarray(sst_fn).sel(time=slice(f'{start_year}-01-01', '2018-01-31'))
       X2=get_resolution(X2,1)
-      #print("X2.time 3")
-      #print(X2.time)
-
-   
+      #print("len(X2.time)")
+      #print(len(X2.time))
       X3 = xr.open_dataarray(precip_fn).sel(
-          time=slice(f'{start_year}-12-01', '2018-01-31'))
+          time=slice(f'{start_year}-01-01', '2018-01-31'))
       X3=get_resolution(X3,1)
-      #print("X3.time 3")
-      #print(X3.time)
       # make sure time units are the same for different variables
       X3['time'] = X2.time
 
       X = xr.concat([X1.da, X2.da],dim='var')  # concatenate variables into single dataarray
-      #print("X in dataset.py")
-      #print(X.time)
-      #print("X.time in 12")
-      #print(X.time)
 
       y_fn = os.path.join(data_fp, ppt_file)
 
       y = xr.open_dataarray(y_fn).sel(
-          time=slice('{}-12-01'.format(start_year), '2018-01-31'))
-     
+          time=slice('{}-01-01'.format(start_year), '2018-01-31'))
+      #print("y first len")
+      #print(len(y))
       y=get_resolution(y,1).da
-      
+      #print("after 12 month resolution y ")
+      #print(len(y.time))
+    #print("lead_time")
+    #print(lead_time)
     train_index=math.floor(len(X.time)*split_prop[0])
     valid_index=math.floor(len(X.time)*split_prop[1])
     test_index=math.floor(len(X.time)*split_prop[2])
@@ -346,10 +330,31 @@ def getData(dim,
 
     # Get train, validation, and test indices (no overlap)
     train_idx=list(range(0, train_index))
-   
+    #train_idx = np.concatenate([np.arange(idx, min(N, idx + subseq_len))for idx in subseq_start_idx[:split_dims[0]]])
+    #print("len(y.time)")
+    #print(len(y.time))
+    #print("y.time")
+    #print(y.time)
+    #print("len(X.time)")
+    #print(len(X.time))
+    #print("X.time")
+    #print(X.time)
+    #print(y.isel(time=train_idx))
+    #print("len(train_idx)")
+    #print(len(train_idx))
+    #print("train_idx")
+    #print(train_idx)
     val_idx= list(range(train_index,train_index+valid_index))
     test_idx=list(range(train_index+valid_index,train_index+valid_index+test_index))
-    
+    #val_idx = np.concatenate([np.arange(idx, min(N, idx + subseq_len))for idx in subseq_start_idx[split_dims[0]:split_dims[1]]])
+    #test_idx = np.concatenate([np.arange(idx, min(N, idx + subseq_len))for idx in subseq_start_idx[split_dims[1]:]])
+    #get the indices for the year
+    #count=0
+    #for a in range(len(X.time)):
+        #count+=1
+        #if r=="year" and count==12:
+            #print("X.time[a]")
+            #print(X.time[a])
 
 
     # SPLIT (and pre-process)

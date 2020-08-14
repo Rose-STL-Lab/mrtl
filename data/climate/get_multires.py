@@ -292,9 +292,6 @@ if __name__ == '__main__':
     # # SSS/SST
     # Use CDO to remap the data onto coarser grid
     # #### Put on lat/lon grid and trim
-    all_en4 = xr.open_dataset(os.path.join(out_fp, 'all_en4.nc'))
-    all_en4.salinity.squeeze('depth', drop=True).to_netcdf(os.path.join(out_fp, 'en4_so.nc'))
-    all_en4.temperature.squeeze('depth', drop=True).to_netcdf(os.path.join(out_fp, 'en4_temp.nc'))
     for var in [['en4_so.nc', 'sss_lonlat.nc'], ['en4_temp.nc', 'sst_lonlat.nc']]:
         cdo.sellonlatbox(181,
                          360,

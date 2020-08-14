@@ -15,7 +15,6 @@ dependencies:
   - python-cdo
   - hdf5
   - cmocean
-  - cudatoolkit=10.2
   - rasterio
   - tqdm
   - scikit-learn

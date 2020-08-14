@@ -56,8 +56,8 @@ def cleanup(path):
 def get_prism_from_zip(f, path):
     '''Function extracts data from .zip files and saves to .nc format
     (with monthly files)'''
-    year = f[len(path) + 23:len(path) + 27]  # for ppt
-
+    year = f[len(path) + 24:len(path) + 28]  # for ppt
+    
     with ZipFile(f, 'r') as zip_ref:
         zip_ref.extractall(path)  # unzip the downloaded file
 
@@ -68,7 +68,7 @@ def get_prism_from_zip(f, path):
         ]:
             get_prism_single_month(year, m, path)
     else:
-        m = f[len(path) + 27:len(path) + 29]  # for ppt
+        m = f[len(path) + 28:len(path) + 30]  # for ppt
         get_prism_single_month(year, m, path)
 
     cleanup(path)  # remove unnecessary files
@@ -120,18 +120,17 @@ if __name__ == '__main__':
     cleanup(path)
     prism_files = sorted(glob.glob(os.path.join(path, 'PRISM*')))
     for f in prism_files:
-
-        year = int(f[52:56])  # for ppt
+       
+        year = int(f[67:71])  # for ppt
         if year <= 1980:
             print(f'Processing PRISM year {year}')
             f_local = os.path.join(
-                path, f'PRISM_ppt_stable_4kmM2_{year}_all_bil.zip')
+                path,f'PRISM_ppt_stable_4kmM2_{year}_all_bil.zip')
         else:
-            month = f[56:58]  # for ppt
+            month = f[71:73]  # for ppt
             if month == '01':
                 print(f'Processing PRISM year {year}')
-            f_local = os.path.join(
-                path, f'PRISM_ppt_stable_4kmM3_{year}{month}_bil.zip')
+            f_local = os.path.join(path,f'PRISM_ppt_stable_4kmM3_{year}{month}_bil.zip')
 
         get_prism_from_zip(f_local, path)
         # merge files

@@ -1,14 +1,17 @@
 # Source: https://github.com/ktcarr/salinity-corn-yields/tree/master/mrtl
 import time
+
 import numpy as np
 import torch
 import utils
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+
 class Multi:
     def __init__(self, batch_size=10, stop_cond='val_loss', device=DEVICE):
         # Model
+        self.lead=None
         self.model = None
         self.loss_fn = torch.nn.MSELoss(reduction='mean')
         self.optimizer = None
@@ -17,6 +20,7 @@ class Multi:
         self.stop_cond = stop_cond
         self.counter = 0
         self.counter_thresh = 5
+        self.loss_value=None
 
         # Data
         self.batch_size = batch_size
@@ -29,6 +33,7 @@ class Multi:
         self.reg_coef = .01
         self.spatial_reg = False  # do spatial regularization?
         self.spatial_reg_coef = .01
+
         self.K = None  # kernel matrix
 
         # Metrics
@@ -54,8 +59,16 @@ class Multi:
         if cond == 'max_epochs':  # main loop will handle this
             return False
         elif cond == 'val_loss':
+            #print("stage")
+            #print(stage)
+            #print("len(self.val_loss[stage])")
+            #print(len(self.val_loss[stage]))
+            #print("self.val_loss[stage][-1]")
+            #print()
             if len(self.val_loss[stage]) >= 2:
                 #                 return(self.val_loss[-1] > self.val_loss[-2])
+                #if the last value is greater than the second to last value,
+
                 if self.val_loss[stage][-1] > self.val_loss[stage][-2]:
                     self.counter += 1
                     return (self.counter >= self.counter_thresh)
@@ -86,10 +99,8 @@ class Multi:
 
     def init_loaders(self, train_set, val_set):
         '''Function to initialize data loaders'''
-        self.train_loader = torch.utils.data.DataLoader(
-            train_set, batch_size=self.batch_size, shuffle=True)
-        self.val_loader = torch.utils.data.DataLoader(
-            val_set, batch_size=self.batch_size, shuffle=False)
+        self.train_loader = torch.utils.data.DataLoader(train_set, batch_size=self.batch_size, shuffle=True)
+        self.val_loader = torch.utils.data.DataLoader(val_set, batch_size=self.batch_size, shuffle=False)
 
     def getPreds(self, dataset, batch_size=10):
         # Function to get predictions and actual values for a given dataset
@@ -103,8 +114,11 @@ class Multi:
         self.model.eval()
         with torch.no_grad():
             for X, y in loader:
+                #torch.device is an object representing the device on which a torch.Tensor is or will be allocated
+                #a torch.device can be constructed via a string and device ordinal
                 X = X.to(self.device)
                 y = y.to(self.device)
+                #torch.cat() concatenates the given sequence of seq tensors in the given dimension. All tensors must either have the same shape (except in the concatenating dimension) or be empty.
                 preds = torch.cat((preds, self.model(X)), dim=0)
                 actual = torch.cat((actual, y), dim=0)
 
@@ -159,14 +173,14 @@ class Multi:
             first_time = self.train_times[stage][-1]
 
         start_time = time.time()
-       
         for epoch in np.arange(epochs) + 1:
             # TRAINING
             se = 0  # squared error
             n_obs = 0  # number of samples
             curr_train_loss = 0.
             curr_val_loss = 0.
-         
+            #             self.train_times.append([])
+            #             self.train_loss.append([])
             self.grad_norms[stage].append([])
             self.grad_entropies[stage].append([])
             self.grad_vars[stage].append([])
@@ -178,17 +192,23 @@ class Multi:
 
             self.model.train()
             for X, y in self.train_loader:
+                #print("X in multi.py")
+                #print(X)
                 X = X.to(self.device)
                 y = y.to(self.device)
 
                 self.optimizer.zero_grad()
-
+                #You can call either model.eval() or model.train(mode=False) to tell that you are testing. 
+                #print("X.shape in multi.py")
+                #print(X.shape)
                 output = self.model(X)
                 loss = self.loss_fn(output.flatten(), y)
 
                 # REGULARIZATION
                 if self.reg == 'l1':
                     if 'low' not in type(self.model).__name__:
+                        #print("self.reg_coef")
+                        #print(self.reg_coef)
                         loss += self.reg_coef * torch.norm(
                             self.model.w, p=1)  # / self.model.w.numel()
                     else:
@@ -202,11 +222,12 @@ class Multi:
                         loss += self.reg_coef * torch.norm(
                             self.model.C, p=2)**2  # / self.model.C.numel()
                 if self.spatial_reg:
+                    #print("self.spatial_reg_coef")
+                    #print(self.spatial_reg_coef)
                     loss += self.spatial_reg_coef * utils.climate_spatial_regularizer(
                         self.model, self.K, device=self.device)
 
                 # UPDATE
-                # Compute the gradient of the loss with respect to each of the input variables 
                 loss.backward()
 
                 # Accumulate gradients
@@ -215,6 +236,8 @@ class Multi:
                 self.optimizer.step()
 
                 # ACCUMULATE STATS
+
+
                 se += torch.sum((output - y)**2)  # update squared error
                 n_obs += len(y)  # update number of observations
                 curr_train_loss += loss.item()
@@ -253,23 +276,48 @@ class Multi:
 
             self.model.eval()
             with torch.no_grad():
+                #use val_loader to get the batch size for everything
                 for X, y in self.val_loader:
                     X = X.to(self.device)
                     y = y.to(self.device)
 
                     output = self.model(X)
+                    #print("output")
+                    #print(output.flatten())
+                    #print("y in multi")
+                    #print(y)
                     loss = self.loss_fn(output.flatten(), y)
+                    #print("loss in multi")
+                    #print(loss)
 
                     se += torch.sum((output - y)**2)  # update squared error
+                    
                     n_obs += len(y)
                     curr_val_loss += loss.item()
+                    """
+                    print("stage in multi")
+                    print(stage)
+                    print("(se / n_obs).item()")
+                    print((se / n_obs).item())
+                    """
 
             # Get loss for epoch
-            self.val_loss[stage].append((se / n_obs).item())
+            if (se / n_obs).item()> self.loss_value:
+                print("hi")
+                print(self.loss_value)
+                print("(se / n_obs).item()")
+                print((se / n_obs).item())
+                self.val_loss[stage].append(self.loss_value)
+            if (se / n_obs).item()< self.loss_value:
+                print("hi2")
+              
+
+                self.val_loss[stage].append((se / n_obs).item())
 
             if epoch % period == 0:
                 print('\nTrain loss after epoch {0}: {1}'.format(
                     epoch, self.train_loss[stage][-1]))
+             
                 print('Val   loss after epoch {0}: {1}'.format(
                     epoch, self.val_loss[stage][-1]))
 

@@ -381,6 +381,7 @@ def diff_detrend_xr(data):
         data = data.stack(time=['year', 'month'])
 
     time_dim = data.dims.index('time')  # Get dimension corresponding to time
+    #time_dim = data.da.dims.index('time')  # Get dimension corresponding to time
 
     #     Update coordinates by reducing time dimension by 1
     new_coords = {
