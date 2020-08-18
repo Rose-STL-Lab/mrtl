@@ -2,7 +2,7 @@
 
 This repository contains code for the multiresolution tensor learning model (MRTL).
 
-Paper: [Multiresolution Tensor Learning for Efficient and Interpretable Spatial Analysis](https://arxiv.org/abs/2002.05578)
+Paper: Jung Yeon (John) Park, Kenneth (Theo) Carr, Stephan Zheng, Yisong Yue, Rose Yu [Multiresolution Tensor Learning for Efficient and Interpretable Spatial Analysis](https://arxiv.org/abs/2002.05578), ICML 2020
 
 # Requirements
 
